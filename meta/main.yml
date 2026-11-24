@@ -1,0 +1,16 @@
+---
+galaxy_info:
+  author: ryu
+  description: Deploys buildserver and controls which binaries are compiled
+  company: n
+  license: MIT
+  min_ansible_version: 2.10
+  platforms:
+    - name: Ubuntu
+      versions:
+        - noble
+  galaxy_tags:
+    - buildserver
+    - rust_toolchain
+
+dependencies: []

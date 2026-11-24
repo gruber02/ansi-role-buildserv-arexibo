@@ -1,0 +1,91 @@
+---
+- name: Ensure Podman and native build dependencies are installed
+  ansible.builtin.apt:
+    name:
+      - podman
+      - musl-tools
+      - build-essential
+      - curl
+      - git
+    state: present
+    update_cache: False
+  become: True
+
+- name: Ensure base build directories exist
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: directory
+    owner: "{{ ansible_user }}"
+    group: "{{ ansible_user }}"
+    mode: "0755"
+  loop:
+    - "{{ build_server_base_dir }}/arexibo"
+    - "{{ build_server_base_dir }}/musl_tools"
+    - "{{ build_server_base_dir }}/container"
+  become: True
+
+# --- Arexibo Container Build Process ---
+
+- name: Deploy Containerfile for Arexibo builder
+  ansible.builtin.copy:
+    src: Containerfile.arexibo
+    dest: "{{ build_server_base_dir }}/container/Containerfile"
+    owner: "{{ ansible_user }}"
+    group: "{{ ansible_user }}"
+    mode: "0644"
+  become: True
+
+- name: Build Arexibo Podman image
+  ansible.builtin.command:
+    cmd: podman build -t arexibo-builder -f Containerfile .
+    chdir: "{{ build_server_base_dir }}/container"
+  register: _podman_build
+  changed_when: "'COMMIT' in _podman_build.stdout or 'Successfully tagged' in _podman_build.stdout"
+  become: True
+
+- name: Check if compiled Arexibo binary already exists
+  ansible.builtin.stat:
+    path: "{{ build_server_base_dir }}/arexibo/arexibo"
+  register: _arexibo_bin
+
+- name: Compile Arexibo inside Podman container (This will take a while!)
+  ansible.builtin.command:
+    cmd: podman run --rm -v "{{ build_server_base_dir }}/arexibo:/output:Z" arexibo-builder
+  become: True
+  when: not _arexibo_bin.stat.exists or arexibo_force_rebuild | bool
+
+- name: Ensure correct ownership of compiled Arexibo binary
+  ansible.builtin.file:
+    path: "{{ build_server_base_dir }}/arexibo/arexibo"
+    owner: "{{ ansible_user }}"
+    group: "{{ ansible_user }}"
+    mode: "0755"
+  become: True
+  when: not _arexibo_bin.stat.exists or arexibo_force_rebuild | bool
+
+# --- Native Musl Tools Build Process ---
+
+- name: Install Rust toolchain on host (for musl tools)
+  ansible.builtin.shell:
+    cmd: curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
+    creates: "{{ ansible_env.HOME }}/.cargo/bin/rustc"
+
+- name: Ensure musl target is added to Rust
+  ansible.builtin.command:
+    cmd: "{{ ansible_env.HOME }}/.cargo/bin/rustup target add x86_64-unknown-linux-musl"
+  register: _rustup_target
+  changed_when: "'installed' in _rustup_target.stdout or 'updated' in _rustup_target.stdout"
+
+- name: Compile Rust musl CLI tools via Cargo
+  ansible.builtin.command:
+    cmd: >
+      {{ ansible_env.HOME }}/.cargo/bin/cargo install {{ item.name }}
+      --version {{ item.version }}
+      --target x86_64-unknown-linux-musl
+      --root {{ build_server_base_dir }}/musl_tools
+  loop: "{{ rust_musl_tools }}"
+  environment:
+    # Explicitly instruct Cargo to use the C-linker provided by musl-tools
+    CARGO_TARGET_X86_64_UNKNOWN_LINUX_MUSL_LINKER: "musl-gcc"
+  register: _cargo_install
+  changed_when: "'is already installed' not in _cargo_install.stderr"

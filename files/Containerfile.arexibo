@@ -1,0 +1,26 @@
+FROM docker.io/library/ubuntu:24.04
+ENV DEBIAN_FRONTEND=noninteractive
+
+# Install all heavy C++ / Qt6 dependencies for Arexibo
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    cmake \
+    g++ \
+    libdbus-1-dev \
+    libzmq3-dev \
+    libudev-dev \
+    qt6-webengine-dev \
+    git \
+    curl \
+    ca-certificates \
+    build-essential \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install Rust inside the container
+RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
+ENV PATH="/root/.cargo/bin:${PATH}"
+
+# Clone fresh code and compile at runtime
+CMD git clone https://github.com/birkenfeld/arexibo.git /tmp/arexibo \
+    && cd /tmp/arexibo \
+    && cargo build --release \
+    && cp target/release/arexibo /output/arexibo

@@ -1,0 +1,17 @@
+---
+# Build Server Configuration
+build_server_base_dir: "/opt/rust_builds"
+arexibo_force_rebuild: False
+
+# Pure Rust CLI Tools to compile statically
+rust_musl_tools:
+  - { name: 'ripgrep', bin: 'rg', version: '16.0.0' }
+  - { name: 'fd-find', bin: 'fd', version: '10.5.2' }
+  - { name: 'zoxide', bin: 'zoxide', version: '0.10.0' }
+  - { name: 'bat', bin: 'bat', version: '0.26.1' }
+  - { name: 'du-dust', bin: 'dust', version: '1.2.7' }
+  - { name: 'procs', bin: 'procs', version: '0.14.12' }
+  - { name: 'git-delta', bin: 'delta', version: '0.22.0' }
+  - { name: 'dysk', bin: 'dysk', version: '3.8.2' }
+  - { name: 'eza', bin: 'eza', version: '0.23.5' }
+  - { name: 'code2prompt', bin: 'code2prompt', version: '4.3.0' }
